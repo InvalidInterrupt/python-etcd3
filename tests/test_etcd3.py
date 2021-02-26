@@ -636,27 +636,6 @@ class TestEtcd3(object):
         for value, _ in values:
             assert value == b'i am a range'
 
-    def test_get_prefix_keys(self, etcd):
-        for i in range(10):
-            etcdctl('put', '/doot/range{}'.format(i), 'i am a range')
-
-        for i in range(5):
-            etcdctl('put', '/doot/notrange{}'.format(i), 'i am a not range')
-        keys = list(etcd.get_prefix_keys('/doot/range'))
-        assert len(keys) == 10
-        for i, key in enumerate(keys):
-            assert key == b'/doot/range%d' % i
-
-    def test_count_prefix(self, etcd):
-        for i in range(20):
-            etcdctl('put', '/doot/range{}'.format(i), 'i am a range')
-
-        for i in range(5):
-            etcdctl('put', '/doot/notrange{}'.format(i), 'i am a not range')
-
-        count = etcd.count_prefix('/doot/range')
-        assert count == 20
-
     def test_get_prefix_filtered_by_revision(self, etcd):
         for i in range(20):
             out = etcdctl('put', '/doot/range{}'.format(i), 'i am a range')
@@ -712,22 +691,11 @@ class TestEtcd3(object):
         result = list(etcd.get_all())
         assert not result
 
-    def test_all_keys_not_found_error(self, etcd):
-        result = list(etcd.get_all_keys())
-        assert not result
-
     def test_range_not_found_error(self, etcd):
         for i in range(5):
             etcdctl('put', '/doot/notrange{}'.format(i), 'i am a not range')
 
         result = list(etcd.get_prefix('/doot/range'))
-        assert not result
-
-    def test_range_keys_not_found_error(self, etcd):
-        for i in range(5):
-            etcdctl('put', '/doot/notrange{}'.format(i), 'i am a not range')
-
-        result = list(etcd.get_prefix_keys('/doot/range'))
         assert not result
 
     def test_get_all(self, etcd):
@@ -752,29 +720,6 @@ class TestEtcd3(object):
         for value, meta in values:
             assert meta.key.startswith(b"/doot/")
             assert not value
-
-    def test_get_all_keys(self, etcd):
-        for i in range(5):
-            etcdctl('put', '/doot/range{}'.format(i), 'i am in all')
-
-        for i in range(5):
-            etcdctl('put', '/doot/notrange{}'.format(i), 'i am in all')
-        keys = list(etcd.get_all_keys())
-        assert len(keys) == 10
-        for i, key in enumerate(keys):
-            if i < 5:
-                assert key == b'/doot/notrange%d' % i
-            else:
-                assert key == b'/doot/range%d' % (i - 5)
-
-    def test_count_all(self, etcd):
-        for i in range(20):
-            etcdctl('put', '/doot/range{}'.format(i), 'i am in all')
-
-        for i in range(5):
-            etcdctl('put', '/doot/notrange{}'.format(i), 'i am in all')
-        count = etcd.count_all()
-        assert count == 25
 
     def test_sort_order(self, etcd):
         def remove_prefix(string, prefix):

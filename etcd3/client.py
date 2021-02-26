@@ -202,20 +202,11 @@ class Etcd3Client(object):
 
     def _build_get_range_request(self, key,
                                  range_end=None,
-                                 limit=None,
-                                 revision=None,
                                  sort_order=None,
                                  sort_target='key',
-                                 serializable=False,
-                                 keys_only=False,
-                                 count_only=None,
-                                 min_mod_revision=None,
-                                 max_mod_revision=None,
-                                 min_create_revision=None,
-                                 max_create_revision=None):
-        range_request = etcdrpc.RangeRequest()
+                                 **kwargs):
+        range_request = etcdrpc.RangeRequest(**kwargs)
         range_request.key = utils.to_bytes(key)
-        range_request.keys_only = keys_only
         if range_end is not None:
             range_request.range_end = utils.to_bytes(range_end)
 
@@ -242,17 +233,12 @@ class Etcd3Client(object):
             raise ValueError('sort_target must be one of "key", '
                              '"version", "create", "mod" or "value"')
 
-        range_request.serializable = serializable
-
         return range_request
 
     @_handle_errors
-    def get_response(self, key, serializable=False):
+    def get_response(self, key, **kwargs):
         """Get the value of a key from etcd."""
-        range_request = self._build_get_range_request(
-            key,
-            serializable=serializable
-        )
+        range_request = self._build_get_range_request(key, **kwargs)
 
         return self.kvstub.Range(
             range_request,
@@ -322,6 +308,35 @@ class Etcd3Client(object):
         )
 
     @_handle_errors
+    def get_prefix_keys(self, key_prefix,
+                        sort_order=None,
+                        sort_target='key',
+                        **kwargs):
+        """
+        Get a range of keys with a prefix.
+        :param key_prefix: first key in range
+        :returns: sequence of keys
+        """
+        range_request = self._build_get_range_request(
+            key=key_prefix,
+            range_end=utils.prefix_range_end(utils.to_bytes(key_prefix)),
+            sort_order=sort_order,
+            sort_target=sort_target,
+            keys_only=True,
+            **kwargs
+        )
+
+        range_response = self.kvstub.Range(
+            range_request,
+            self.timeout,
+            credentials=self.call_credentials,
+            metadata=self.metadata
+        )
+
+        for kv in range_response.kvs:
+            yield kv.key
+
+    @_handle_errors
     def get_range_response(self, range_start, range_end, sort_order=None,
                            sort_target='key', **kwargs):
         """Get a range of keys."""
@@ -354,15 +369,41 @@ class Etcd3Client(object):
             yield (kv.value, KVMetadata(kv, range_response.header))
 
     @_handle_errors
-    def get_all_response(self, sort_order=None, sort_target='key',
-                         keys_only=False):
+    def count_prefix(self, key_prefix,
+                     sort_order=None,
+                     sort_target='key',
+                     **kwargs):
+        """
+        Count the number of keys with a prefix.
+
+        :param key_prefix: first key in range
+
+        :returns:  Integer count of keys
+        """
+        range_request = self._build_get_range_request(
+            key=key_prefix,
+            range_end=utils.prefix_range_end(utils.to_bytes(key_prefix)),
+            sort_order=sort_order,
+            sort_target=sort_target,
+            count_only=True,
+            **kwargs
+        )
+
+        range_response = self.kvstub.Range(
+            range_request,
+            self.timeout,
+            credentials=self.call_credentials,
+            metadata=self.metadata
+        )
+        return range_response.count
+
+    @_handle_errors
+    def get_all_response(self,  **kwargs):
         """Get all keys currently stored in etcd."""
         range_request = self._build_get_range_request(
             key=b'\0',
             range_end=b'\0',
-            sort_order=sort_order,
-            sort_target=sort_target,
-            keys_only=keys_only,
+            **kwargs
         )
 
         return self.kvstub.Range(
@@ -382,6 +423,58 @@ class Etcd3Client(object):
         range_response = self.get_all_response(**kwargs)
         for kv in range_response.kvs:
             yield (kv.value, KVMetadata(kv, range_response.header))
+
+    @_handle_errors
+    def get_all_keys(self, sort_order=None, sort_target='key', **kwargs):
+        """
+        Get all keys currently stored in etcd.
+
+        :returns: sequence of keys
+        """
+        range_request = self._build_get_range_request(
+            key=b'\0',
+            range_end=b'\0',
+            sort_order=sort_order,
+            sort_target=sort_target,
+            keys_only=True,
+            **kwargs
+        )
+
+        range_response = self.kvstub.Range(
+            range_request,
+            self.timeout,
+            credentials=self.call_credentials,
+            metadata=self.metadata
+        )
+        if range_response.count < 1:
+            return
+        else:
+            for kv in range_response.kvs:
+                yield kv.key
+
+    @_handle_errors
+    def count_all(self, sort_order=None, sort_target='key', **kwargs):
+        """
+        Count the number of keys stored in etcd.
+
+        :returns:  Integer count of keys
+        """
+        range_request = self._build_get_range_request(
+            key=b'\0',
+            range_end=b'\0',
+            sort_order=sort_order,
+            sort_target=sort_target,
+            count_only=True,
+            **kwargs
+        )
+
+        range_response = self.kvstub.Range(
+            range_request,
+            self.timeout,
+            credentials=self.call_credentials,
+            metadata=self.metadata
+        )
+        return range_response.count
 
     def _build_put_request(self, key, value, lease=None, prev_kv=False):
         put_request = etcdrpc.PutRequest()

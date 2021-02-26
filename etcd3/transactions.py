@@ -87,24 +87,22 @@ class Mod(BaseCompare):
 
 
 class Put(object):
-    def __init__(self, key, value, lease=None, prev_kv=False):
+    def __init__(self, key, value, lease=None, prev_kv=False, **opts):
         self.key = key
         self.value = value
-        self.lease = lease
-        self.prev_kv = prev_kv
+        self.options = dict(lease=lease, prev_kv=prev_kv, **opts)
 
 
 class Get(object):
-    def __init__(self, key, range_end=None):
+    def __init__(self, key, range_end=None, **opts):
         self.key = key
-        self.range_end = range_end
+        self.options = dict(range_end=range_end, **opts)
 
 
 class Delete(object):
-    def __init__(self, key, range_end=None, prev_kv=False):
+    def __init__(self, key, range_end=None, prev_kv=False, **opts):
         self.key = key
-        self.range_end = range_end
-        self.prev_kv = prev_kv
+        self.options = dict(range_end=range_end, prev_kv=prev_kv, **opts)
 
 
 class Txn(object):

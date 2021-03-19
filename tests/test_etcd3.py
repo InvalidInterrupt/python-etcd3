@@ -31,6 +31,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 
 import etcd3
 import etcd3.etcdrpc as etcdrpc
+import etcd3.events as events
 import etcd3.exceptions
 import etcd3.utils as utils
 from etcd3.client import EtcdTokenCallCredentials
@@ -506,6 +507,17 @@ class TestEtcd3(object):
                     utils.to_bytes('/doot/watch/prefix/{}'.format(count))
                 assert event.value == utils.to_bytes(str(count))
                 count += 1
+
+    def test_watch_filter(self, etcd):
+        revision = etcd.put('/doot/watch', '0').header.revision
+        etcd.put('/doot/watch', '1')
+        etcd.delete('/doot/watch')
+        event_iterator, cancel = \
+            etcd.watch('/doot/watch', start_revision=revision,
+                       filters=[etcdrpc.WatchCreateRequest.NOPUT])
+        event = next(event_iterator)
+        cancel()
+        assert isinstance(event, events.DeleteEvent)
 
     def test_transaction_success(self, etcd):
         etcdctl('put', '/doot/txn', 'dootdoot')
